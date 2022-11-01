@@ -20,8 +20,15 @@ namespace ExpressionGenerator
 
             var jsonExpressionParser = new JsonExpressionParser();
             var predicate = jsonExpressionParser
-                .ParsePredicateOf<Transaction>(jsonDocument);
-            
+                .ParsePredicateOf<Transaction>(JsonDocument.Parse(jsonDocument.RootElement.GetProperty("conditions").ToString()));
+
+            var doc = JsonDocument.Parse(jsonDocument.RootElement.GetProperty("functions").ToString());
+
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var groupBy = jsonExpressionParser.ParsePredicateOf<Transaction>(JsonDocument.Parse(item.ToString()));
+            }
+
             var transactionList = Transaction.GetList(1000);
             
             var filteredTransactions = transactionList.Where(predicate).ToList();

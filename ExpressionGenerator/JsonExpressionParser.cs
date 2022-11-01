@@ -1,7 +1,10 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text.Json;
 
 namespace ExpressionGenerator
@@ -13,6 +16,7 @@ namespace ExpressionGenerator
         private readonly string BooleanStr = nameof(Boolean).ToLower();
         private readonly string Number = nameof(Number).ToLower();
         private readonly string In = nameof(In).ToLower();
+        private readonly string GroupBy = nameof(GroupBy).ToLower();
         private readonly string And = nameof(And).ToLower();
 
         private readonly MethodInfo MethodContains = typeof(Enumerable).GetMethods(
@@ -21,6 +25,70 @@ namespace ExpressionGenerator
                             && m.GetParameters().Length == 2);
 
         private delegate Expression Binder(Expression left, Expression right);
+        public  Expression<Func<TSource, object>> DynamicGroupBy<TSource>
+       (params string[] properties)
+        {
+            var entityType = typeof(TSource);
+            var props = properties.Select(x => entityType.GetProperty(x)).ToList();
+            var source = Expression.Parameter(entityType, "x");
+
+            // create x=> new myType{ prop1 = x.prop1,...}
+            var newType = CreateNewType(props);
+            var binding = props.Select(p => Expression.Bind(newType.GetField(p.Name),
+                          Expression.Property(source, p.Name))).ToList();
+            var body = Expression.MemberInit(Expression.New(newType), binding);
+            var selector = Expression.Lambda<Func<TSource, object>>(body, source);
+            return selector;
+        }
+       // public Expression<Func<TSource, object>> DynamicGroupBy<TSource>
+       //( string property,params string[] tSelect)
+       // {
+       //     var entityType = typeof(TSource);
+       //     var props = entityType.GetProperty(property);
+       //     var source = Expression.Parameter(entityType, "x");
+
+       //     // create x=> new myType{ prop1 = x.prop1,...}
+       //     var newType = CreateNewType(props);
+       //     var binding = Expression.Bind(newType.GetField(props.Name),
+       //                   Expression.Property(source, props.Name));
+
+       //     var body = Expression.MemberInit(Expression.New(newType), binding);
+       //     var selector = Expression.Lambda<Func<TSource, object>>(body, source);
+       //     return selector;
+       // }
+
+       // public static Type CreateNewType(PropertyInfo props)
+       // {
+       //     AssemblyName asmName = new AssemblyName("MyAsm");
+       //     AssemblyBuilder dynamicAssembly = AssemblyBuilder
+       //         .DefineDynamicAssembly(asmName, AssemblyBuilderAccess.Run);
+       //     ModuleBuilder dynamicModule = dynamicAssembly.DefineDynamicModule("MyAsm");
+       //     TypeBuilder dynamicAnonymousType = dynamicModule
+       //         .DefineType("MyType", TypeAttributes.Public);
+
+            
+            
+       //     dynamicAnonymousType.DefineField(props.Name, props.PropertyType, FieldAttributes.Public);
+            
+       //     return dynamicAnonymousType.CreateType();
+       // }
+
+        public static Type CreateNewType(List<PropertyInfo> props)
+        {
+            AssemblyName asmName = new AssemblyName("MyAsm");
+            AssemblyBuilder dynamicAssembly = AssemblyBuilder
+                .DefineDynamicAssembly(asmName, AssemblyBuilderAccess.Run);
+            ModuleBuilder dynamicModule = dynamicAssembly.DefineDynamicModule("MyAsm");
+            TypeBuilder dynamicAnonymousType = dynamicModule
+                .DefineType("MyType", TypeAttributes.Public);
+
+            foreach (var p in props)
+            {
+                dynamicAnonymousType.DefineField(p.Name, p.PropertyType, FieldAttributes.Public);
+            }
+            return dynamicAnonymousType.CreateType();
+        }
+
 
         private Expression ParseTree<T>(
             JsonElement condition,
@@ -64,12 +132,21 @@ namespace ExpressionGenerator
                         property);
                     left = bind(left, right);
                 }
-                else
+                else if(@operator == And)
                 {
                     object val = (type == StringStr || type == BooleanStr) ?
                         (object)value.GetString() : value.GetDecimal();
                     var toCompare = Expression.Constant(val);
                     var right = Expression.Equal(property, toCompare);
+                    left = bind(left, right);
+                }
+                else if(@operator == GroupBy)
+                {
+                    string[] values =new string[1];
+                    values =JsonConvert.DeserializeObject<string[]>(rule.GetProperty(nameof(values)).GetString());
+                    var fields = rule.GetProperty(nameof(field)).GetString();
+                    values = values.Append(field).ToArray();
+                    var right = DynamicGroupBy<T>(values);
                     left = bind(left, right);
                 }
             }
