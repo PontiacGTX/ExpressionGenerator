@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -28,7 +29,7 @@ namespace ExpressionGenerator
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 var groupBy = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
-               var r =  transactionList.Select(groupBy);
+                var r =  transactionList.Select(groupBy).ToList();
             }
 
             

@@ -83,7 +83,7 @@ namespace ExpressionGenerator
         
         public static Type CreateNewType(List<PropertyInfo> props)
         {
-            AssemblyName asmName = new AssemblyName("MyAsm");
+            AssemblyName asmName =  typeof(Program).Assembly.GetName();
             AssemblyBuilder dynamicAssembly = AssemblyBuilder
                 .DefineDynamicAssembly(asmName, AssemblyBuilderAccess.Run);
             ModuleBuilder dynamicModule = dynamicAssembly.DefineDynamicModule("MyAsm");
