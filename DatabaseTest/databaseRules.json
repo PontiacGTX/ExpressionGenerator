@@ -41,17 +41,19 @@
   },
   "functions": [
     {
-      "function": "groupby",
+      "condition": "groupby",
       "rules": [
         {
           "label": "Category",
           "field": "Category",
+          "parent" : "Transaction",
           "operator": "equal",
           "type": "string",
-          "value": ""
+          "value": [ "Amount", "Category", "PaymentMode" ]
         }
       ]
-
     }
   ]
+
 }
+

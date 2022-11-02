@@ -17,19 +17,20 @@ namespace ExpressionGenerator
 
             var jsonStr = File.ReadAllText("rules.json");
             var jsonDocument = JsonDocument.Parse(jsonStr);
-
-            var jsonExpressionParser = new JsonExpressionParser();
+            
+            var jsonExpressionParser = new JsonExpressionParser<ConditionalRule>(new QueryType<ConditionalRule>());
             var predicate = jsonExpressionParser
                 .ParsePredicateOf<Transaction>(JsonDocument.Parse(jsonDocument.RootElement.GetProperty("conditions").ToString()));
 
             var doc = JsonDocument.Parse(jsonDocument.RootElement.GetProperty("functions").ToString());
 
+            var transactionList = Transaction.GetList(1000);
             foreach (var item in doc.RootElement.EnumerateArray())
             {
-                var groupBy = jsonExpressionParser.ParsePredicateOf<Transaction>(JsonDocument.Parse(item.ToString()));
+                var groupBy = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
+               var r =  transactionList.Select(groupBy);
             }
 
-            var transactionList = Transaction.GetList(1000);
             
             var filteredTransactions = transactionList.Where(predicate).ToList();
             

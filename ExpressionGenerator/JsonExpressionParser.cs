@@ -9,8 +9,13 @@ using System.Text.Json;
 
 namespace ExpressionGenerator
 {
-    public class JsonExpressionParser
+    public class JsonExpressionParser<T> where T: Rule
     {
+        QueryType<T> _Type { get; }
+        public JsonExpressionParser(QueryType<T> type)
+        {
+            _Type = type;
+        }
         private const string StringStr = "string";
 
         private readonly string BooleanStr = nameof(Boolean).ToLower();
@@ -18,6 +23,8 @@ namespace ExpressionGenerator
         private readonly string In = nameof(In).ToLower();
         private readonly string GroupBy = nameof(GroupBy).ToLower();
         private readonly string And = nameof(And).ToLower();
+        private readonly string Or = nameof(Or).ToLower();
+        private readonly string Equal = nameof(Equal).ToLower();
 
         private readonly MethodInfo MethodContains = typeof(Enumerable).GetMethods(
                         BindingFlags.Static | BindingFlags.Public)
@@ -25,12 +32,12 @@ namespace ExpressionGenerator
                             && m.GetParameters().Length == 2);
 
         private delegate Expression Binder(Expression left, Expression right);
-        public  Expression<Func<TSource, object>> DynamicGroupBy<TSource>
-       (params string[] properties)
+        public Expression<Func<TSource, object>> DynamicLambda<TSource>
+       (ParameterExpression parameterExpression = null, params string[] properties)
         {
             var entityType = typeof(TSource);
             var props = properties.Select(x => entityType.GetProperty(x)).ToList();
-            var source = Expression.Parameter(entityType, "x");
+            var source = parameterExpression ==null? Expression.Parameter(entityType, "x"): parameterExpression;
 
             // create x=> new myType{ prop1 = x.prop1,...}
             var newType = CreateNewType(props);
@@ -73,6 +80,7 @@ namespace ExpressionGenerator
        //     return dynamicAnonymousType.CreateType();
        // }
 
+        
         public static Type CreateNewType(List<PropertyInfo> props)
         {
             AssemblyName asmName = new AssemblyName("MyAsm");
@@ -98,6 +106,7 @@ namespace ExpressionGenerator
             var gate = condition.GetProperty(nameof(condition)).GetString();
             
             JsonElement rules = condition.GetProperty(nameof(rules));
+            Console.WriteLine(nameof(rules));
 
             Binder binder = gate == And ? (Binder)Expression.And : Expression.Or;
 
@@ -132,7 +141,7 @@ namespace ExpressionGenerator
                         property);
                     left = bind(left, right);
                 }
-                else if(@operator == And)
+                else if(@operator == And || @operator== Equal || @operator == Or)
                 {
                     object val = (type == StringStr || type == BooleanStr) ?
                         (object)value.GetString() : value.GetDecimal();
@@ -142,19 +151,18 @@ namespace ExpressionGenerator
                 }
                 else if(@operator == GroupBy)
                 {
-                    string[] values =new string[1];
-                    values =JsonConvert.DeserializeObject<string[]>(rule.GetProperty(nameof(values)).GetString());
+                    _Type.SetQuery(condition.DeserializeObject<FunctionRule>());
+                    var items = rule.GetProperty(nameof(value)) ;
+                    var values  = items.GetEnumeratorList<string>();
                     var fields = rule.GetProperty(nameof(field)).GetString();
-                    values = values.Append(field).ToArray();
-                    var right = DynamicGroupBy<T>(values);
-                    left = bind(left, right);
+                    return DynamicLambda<T>(parm,properties: values.ToArray());
                 }
             }
 
             return left;
         }
 
-        public Expression<Func<T, bool>> ParseExpressionOf<T>(JsonDocument doc)
+        public Expression<Func<T,bool>> ParseExpressionOf<T>(JsonDocument doc)
         {
             var itemExpression = Expression.Parameter(typeof(T));
             var conditions = ParseTree<T>(doc.RootElement, itemExpression);
@@ -164,11 +172,34 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-
+            if(_Type.IsInnerType(typeof(FunctionRule)))
+            {
+                return conditions as Expression<Func<T,bool>>;
+            }
             var query = Expression.Lambda<Func<T, bool>>(conditions, itemExpression);
             return query;
         }
+        public Expression<Func<T, object>> ParseExpression<T>(JsonDocument doc)
+        {
+            var itemExpression = Expression.Parameter(typeof(T));
+            var conditions = ParseTree<T>(doc.RootElement, itemExpression);
+            if (conditions.CanReduce)
+            {
+                conditions = conditions.ReduceAndCheck();
+            }
 
+            Console.WriteLine(conditions.ToString());
+            if (_Type.Query.Condition == GroupBy)
+                return conditions as Expression<Func<T, object>>;
+
+            var query = Expression.Lambda<Func<T, object>>(conditions, itemExpression);
+            return query;
+        }
+        public Func<T, object> ParsePredicate<T>(JsonDocument doc)
+        {
+            var query = ParseExpression<T>(doc);
+            return query.Compile();
+        }
         public Func<T, bool> ParsePredicateOf<T>(JsonDocument doc)
         {
             var query = ParseExpressionOf<T>(doc);

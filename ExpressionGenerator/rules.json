@@ -46,13 +46,14 @@
         {
           "label": "Category",
           "field": "Category",
-          "operator": "equal",
+          "parent": "Transaction",
+          "operator": "groupby",
           "type": "string",
-          "values": [ "Amount", "Category", "PaymentMode" ]
+          "value": [ "Amount", "Category", "PaymentMode" ]
+        }
       ]
-       }
-      ]
-
     }
   ]
+  
+
 }
