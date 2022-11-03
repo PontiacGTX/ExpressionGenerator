@@ -41,12 +41,28 @@
   },
   "functions": [
     {
+      "condition": "select",
+      "rules": [
+        {
+          "label": "Category",
+          "field": "Category",
+          "parent": "Transaction",
+          "operator": "select",
+          "type": "string",
+          "value": [ "Amount", "Category", "PaymentMode" ]
+        }
+
+      ]
+
+    },
+    {
       "condition": "groupby",
       "rules": [
         {
           "label": "Category",
           "field": "Category",
           "parent": "Transaction",
+          "key": "Category",
           "operator": "groupby",
           "type": "string",
           "value": [ "Amount", "Category", "PaymentMode" ]

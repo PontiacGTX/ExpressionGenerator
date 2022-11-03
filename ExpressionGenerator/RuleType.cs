@@ -21,5 +21,8 @@ namespace ExpressionGenerator
         public object Value { get; set; }
         [JsonProperty("parent")]
         public string Parent { get; set; }
+
+        [JsonProperty("key")]
+        public string Key { get; set; }
     }
 }

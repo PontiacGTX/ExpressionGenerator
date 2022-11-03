@@ -26,9 +26,24 @@ namespace ExpressionGenerator
             var doc = JsonDocument.Parse(jsonDocument.RootElement.GetProperty("functions").ToString());
 
             var transactionList = Transaction.GetList(1000);
+            Console.WriteLine($"{doc.RootElement.GetArrayLength()} {jsonDocument.RootElement.GetProperty("functions").ToString()}");
             foreach (var item in doc.RootElement.EnumerateArray())
             {
+                jsonExpressionParser.SetQueryType(item);
                 var groupBy = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
+                var t = jsonExpressionParser._Type;
+                if(t.Query.Type.FirstOrDefault().Operator=="groupby")
+                {
+                  var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
+                    foreach(var re in res.ToArray())
+                    {
+                        Console.WriteLine($"KEY----------{re.Key}");
+                        foreach (var registro in re.ToArray())
+                        {
+                            Console.WriteLine(registro);
+                        }
+                    }
+                }
                 var r =  transactionList.Select(groupBy).ToList();
             }
 
