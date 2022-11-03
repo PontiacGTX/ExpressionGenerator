@@ -11,10 +11,10 @@ namespace ExpressionGenerator
 {
     public class JsonExpressionParser<T> where T: Rule
     {
-        public QueryType<T> _Type { get; }
+        public QueryType<T> @Type { get; }
         public JsonExpressionParser(QueryType<T> type)
         {
-            _Type = type;
+            @Type = type;
         }
         private const string StringStr = "string";
 
@@ -114,7 +114,7 @@ namespace ExpressionGenerator
 
         public void SetQueryType(JsonElement condition)
         {
-            _Type.SetQuery(condition.DeserializeObject<FunctionRule>());
+            @Type.SetQuery(condition.DeserializeObject<FunctionRule>());
         }
 
         private Expression ParseTree<T>(
@@ -172,7 +172,7 @@ namespace ExpressionGenerator
                 {
                     if(@operator==GroupBy)
                     {
-                        return DynamicPropertySelect<T>(parm, properties: new[] { _Type.Query.Type[0].Key });
+                        return DynamicPropertySelect<T>(parm, properties: new[] { @Type.Query.Type[0].Key });
                     }
                     var items = rule.GetProperty(nameof(value)) ;
                     var values  = items.GetEnumeratorList<string>();
@@ -203,7 +203,7 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-            if(_Type.IsInnerType(typeof(FunctionRule)))
+            if(@Type.IsInnerType(typeof(FunctionRule)))
             {
                 return conditions as Expression<Func<T,bool>>;
             }
@@ -220,7 +220,7 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-            if (_Type.Query.Condition == GroupBy || _Type.Query.Condition == Select)
+            if (@Type.Query.Condition == GroupBy || @Type.Query.Condition == Select)
                 return conditions as Expression<Func<T, object>>;
 
             var query = Expression.Lambda<Func<T, object>>(conditions, itemExpression);

@@ -1,7 +1,9 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text.Json;
 
 namespace ExpressionGenerator
@@ -27,27 +29,42 @@ namespace ExpressionGenerator
 
             var transactionList = Transaction.GetList(1000);
             Console.WriteLine($"{doc.RootElement.GetArrayLength()} {jsonDocument.RootElement.GetProperty("functions").ToString()}");
+            
             foreach (var item in doc.RootElement.EnumerateArray())
             {
                 jsonExpressionParser.SetQueryType(item);
-                var groupBy = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
-                var t = jsonExpressionParser._Type;
+                var lambda = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
+                var t = jsonExpressionParser.@Type;
+              
                 if(t.Query.Type.FirstOrDefault().Operator=="groupby")
                 {
-                  var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
-                    foreach(var re in res.ToArray())
-                    {
-                        Console.WriteLine($"KEY----------{re.Key}");
-                        foreach (var registro in re.ToArray())
-                        {
-                            Console.WriteLine(registro);
-                        }
-                    }
+                    // var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
+                    //foreach(var re in res.ToArray())
+                    //{
+                    //    Console.WriteLine($"KEY----------{re.Key}");
+                    //    foreach (var registro in re.ToArray())
+                    //    {
+                    //        Console.WriteLine(registro);
+                    //    }
+                    //}
                 }
-                var r =  transactionList.Select(groupBy).ToList();
+                
             }
 
-            
+                if(lambdas.TryGetValue("select",out var lam) && lambdas.TryGetValue("groupby",out var lamGroupBy))
+                {
+                        try
+                        {
+                            var r = transactionList.Select(lam).GroupBy(lamGroupBy);
+                            Console.WriteLine(r.Count());
+                        }
+                        catch (Exception ex)
+                        {
+
+                            throw;
+                        }
+                }
+            Console.WriteLine(lambdas.Count());
             var filteredTransactions = transactionList.Where(predicate).ToList();
             
             writeAndWait($"Filtered to {filteredTransactions.Count} entities.");
