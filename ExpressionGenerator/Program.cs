@@ -35,33 +35,21 @@ namespace ExpressionGenerator
             var select = expressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(selectJson.ToString()));
 
             var sel = transactionList.Select(select).ToList();
-            var tSel = sel.FirstOrDefault().GetType();
             expressionParser.SetQueryType(gropuByJson);
-            expressionParser.SetFuncType(tSel);
-            var groupBy = expressionParser.ParsePredicateObject(JsonDocument.Parse(gropuByJson.ToString()));
-            var groupBySel = sel.GroupBy(groupBy); 
-            //foreach (var item in functions.RootElement.EnumerateArray())
+           
+            //var groupBy = sel.Select(x => x.ConvertToExpando()).GroupBy(x => ((IDictionary<string,object>)x)[expressionParser.Query_Type.Query.Type[0].Key]);
+            //foreach(var gp in groupBy)
             //{
-            //    var it = item;
-            //    jsonExpressionParser.SetQueryType(it);
-            //    var lambda = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(it.ToString()));
-            //    var t = jsonExpressionParser.Query_Type;
-
-            //    if(t.Query.Type.FirstOrDefault().Operator=="groupby")
+            //    Console.WriteLine($"KEY----"+ gp.Key);
+            //    foreach(var item in gp.ToList())
             //    {
-            //        // var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
-            //        //foreach(var re in res.ToArray())
-            //        //{
-            //        //    Console.WriteLine($"KEY----------{re.Key}");
-            //        //    foreach (var registro in re.ToArray())
-            //        //    {
-            //        //        Console.WriteLine(registro);
-            //        //    }
-            //        //}
+            //        Console.WriteLine(item);
             //    }
-            //    //i++;
             //}
-
+            var tSel = sel.FirstOrDefault().GetType();
+            expressionParser.SetFuncType(tSel);
+            var grp = expressionParser.ParsePredicateObject(JsonDocument.Parse(gropuByJson.ToString()));
+            
 
             var filteredTransactions = transactionList.Where(predicate).ToList();
             

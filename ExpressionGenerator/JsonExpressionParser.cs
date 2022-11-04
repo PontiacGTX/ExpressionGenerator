@@ -38,6 +38,7 @@ namespace ExpressionGenerator
                         BindingFlags.Static | BindingFlags.Public)
                         .Single(m => m.Name == nameof(Enumerable.Contains)
                             && m.GetParameters().Length == 2);
+        public  object compiled { get; set; }
 
         private delegate Expression Binder(Expression left, Expression right);
 
@@ -276,7 +277,11 @@ namespace ExpressionGenerator
             return query;
         }
 
-         Expression<Func<object,object>> ParseExpressionObject(JsonDocument doc)
+        public Expression<Func<Ty, object>> ReturnLambda<Ty>(object lambda)
+            => lambda as Expression<Func<Ty, object>>;
+        public Func<Ty, object> CompileLambda<Ty>(object lambda)
+            => (lambda as Expression<Func<Ty, object>>).Compile() ;
+        object ParseExpressionObject(JsonDocument doc)
         {
             var itemExpression = Expression.Parameter(_ClassType);
             var conditions = ExecuteParseTree(_ClassType,itemExpression, doc.RootElement) as Expression;
@@ -284,13 +289,28 @@ namespace ExpressionGenerator
             {
                 conditions = conditions.ReduceAndCheck();
             }
-            return conditions as Expression<Func<object, object>>;
+
+            Type class_type = typeof(JsonExpressionParser<FunctionRule>);
+            MethodInfo mi = class_type.GetMethod("CompileLambda");
+            MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { _ClassType });
+            Type constructedType = typeof(JsonExpressionParser<>).MakeGenericType(typeof(FunctionRule));
+            var instance = (JsonExpressionParser<FunctionRule>)Activator.CreateInstance(constructedType, args: new object[] { Query_Type, _ClassType });
+
+            compiled =  mi2.Invoke(instance, new object[] { conditions });
+            return compiled;
         }
-        public Func<object, object> ParsePredicateObject(JsonDocument doc)
+
+        public object ParsePredicateObject(JsonDocument doc)
         {
-            var query = ParseExpressionObject(doc);
-            Console.WriteLine(query);
-            return query.Compile();
+            var query = ParseExpressionObject(doc) as Expression<Func<T,object>>;
+            Type class_type = typeof(JsonExpressionParser<FunctionRule>);
+            MethodInfo mi = class_type.GetMethod("ReturnLambda");
+            MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { _ClassType });
+            Type constructedType = typeof(JsonExpressionParser<>).MakeGenericType(typeof(FunctionRule));
+
+            var instance = (JsonExpressionParser<FunctionRule>)Activator.CreateInstance(constructedType, args: new object[] { Query_Type, _ClassType });
+            //
+            return  mi2.Invoke(instance, new object[] { query });
         }
          Expression<Func<T, object>> ParseExpression<T>(JsonDocument doc)
         {
