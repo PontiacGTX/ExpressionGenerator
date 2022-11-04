@@ -25,33 +25,44 @@ namespace ExpressionGenerator
             var predicate = jsonExpressionParser
                 .ParsePredicateOf<Transaction>(JsonDocument.Parse(jsonDocument.RootElement.GetProperty("conditions").ToString()));
 
-            var doc = JsonDocument.Parse(jsonDocument.RootElement.GetProperty("functions").ToString());
+            var functions = JsonDocument.Parse(jsonDocument.RootElement.GetProperty("functions").ToString());
 
+            var selectJson= functions.RootElement.GetProperty("select");
+            var gropuByJson= functions.RootElement.GetProperty("groupby");
+            var expressionParser = new JsonExpressionParser<FunctionRule>(new QueryType<FunctionRule>());
             var transactionList = Transaction.GetList(1000);
-            Console.WriteLine($"{doc.RootElement.GetArrayLength()} {jsonDocument.RootElement.GetProperty("functions").ToString()}");
-            
-            foreach (var item in doc.RootElement.EnumerateArray())
-            {
-                jsonExpressionParser.SetQueryType(item);
-                var lambda = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
-                var t = jsonExpressionParser.Query_Type;
-              
-                if(t.Query.Type.FirstOrDefault().Operator=="groupby")
-                {
-                    // var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
-                    //foreach(var re in res.ToArray())
-                    //{
-                    //    Console.WriteLine($"KEY----------{re.Key}");
-                    //    foreach (var registro in re.ToArray())
-                    //    {
-                    //        Console.WriteLine(registro);
-                    //    }
-                    //}
-                }
-                
-            }
+            expressionParser.SetQueryType(selectJson);
+            var select = expressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(selectJson.ToString()));
 
-               
+            var sel = transactionList.Select(select).ToList();
+            var tSel = sel.FirstOrDefault().GetType();
+            expressionParser.SetQueryType(gropuByJson);
+            expressionParser.SetFuncType(tSel);
+            var groupBy = expressionParser.ParsePredicateObject(JsonDocument.Parse(gropuByJson.ToString()));
+            var groupBySel = sel.GroupBy(groupBy); 
+            //foreach (var item in functions.RootElement.EnumerateArray())
+            //{
+            //    var it = item;
+            //    jsonExpressionParser.SetQueryType(it);
+            //    var lambda = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(it.ToString()));
+            //    var t = jsonExpressionParser.Query_Type;
+
+            //    if(t.Query.Type.FirstOrDefault().Operator=="groupby")
+            //    {
+            //        // var res =   transactionList.Select(x=>x).GroupBy(groupBy).ToList();
+            //        //foreach(var re in res.ToArray())
+            //        //{
+            //        //    Console.WriteLine($"KEY----------{re.Key}");
+            //        //    foreach (var registro in re.ToArray())
+            //        //    {
+            //        //        Console.WriteLine(registro);
+            //        //    }
+            //        //}
+            //    }
+            //    //i++;
+            //}
+
+
             var filteredTransactions = transactionList.Where(predicate).ToList();
             
             writeAndWait($"Filtered to {filteredTransactions.Count} entities.");

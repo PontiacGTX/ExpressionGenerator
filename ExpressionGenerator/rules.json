@@ -39,8 +39,9 @@
       }
     ]
   },
-  "functions": [
-    {
+  "functions": {
+
+    "select": {
       "condition": "select",
       "rules": [
         {
@@ -55,7 +56,8 @@
       ]
 
     },
-    {
+
+    "groupby": {
       "condition": "groupby",
       "rules": [
         {
@@ -69,7 +71,8 @@
         }
       ]
     }
-  ]
+   }
+
   
 
 }

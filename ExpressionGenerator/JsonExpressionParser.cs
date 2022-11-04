@@ -22,6 +22,7 @@ namespace ExpressionGenerator
             Query_Type = type;
             _ClassType = classType;
         }
+
         private const string StringStr = "string";
 
         private readonly string BooleanStr = nameof(Boolean).ToLower();
@@ -40,21 +41,31 @@ namespace ExpressionGenerator
 
         private delegate Expression Binder(Expression left, Expression right);
 
-        public Expression<Func<TSource,object>> DynamicPropertySelect<TSource>(ParameterExpression parameterExpression = null, params string[] properties)
-        {
-            var entityType = typeof(TSource);
-            var props = properties.Select(x => entityType.GetProperty(x)).ToList();
-            return Expression.Lambda<Func<TSource, object>>(Expression.Property(parameterExpression, props.First().Name), parameterExpression);
-        }
-        public static object ExecuteDynamicPropertySelect(Type arg, string[] fields)
+        public static Expression<Func<TSource,object>> DynamicPropertySelect<TSource>(ParameterExpression parameterExpression = null, params string[] properties)
         {
 
+            Console.WriteLine(typeof(TSource));
+            var entityType = typeof(TSource);
+            var props = properties.Select(x => entityType.GetProperty(x)).ToList();
+            
+            return Expression.Lambda<Func<TSource, object>>(Expression.Property(parameterExpression, props.First().Name), parameterExpression);
+        }
+        public static Expression<Func<TSource, object>> DynamicFieldSelect<TSource>(ParameterExpression parameterExpression = null, params string[] properties)
+        {
+
+            var entityType = typeof(TSource);
+            var props = properties.Select(x => entityType.GetField(x)).ToList();
+            return Expression.Lambda<Func<TSource, object>>(Expression.Field(parameterExpression, props.First().Name), parameterExpression);
+        }
+
+        public static object ExecuteDynamicFieldSelect(Type arg, string[] fields)
+        {
             Type arg_type = arg;
             var expressionParam =Expression.Parameter(arg_type);
-            Type class_type = typeof(JsonExpressionParser<Rule>);
-            MethodInfo mi = class_type.GetMethod("DynamicLambda", BindingFlags.Static | BindingFlags.Public);
+            Type class_type = typeof(JsonExpressionParser<FunctionRule>);
+            MethodInfo mi = class_type.GetMethod("DynamicFieldSelect");
             MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { arg_type });
-            return mi2.Invoke(null, new object[] { null, expressionParam, fields });
+            return mi2.Invoke(null, new object[] {  expressionParam, fields });
         }
         public static object ExecuteDynamicLambda(Type arg,string[] fields)
         {
@@ -65,7 +76,7 @@ namespace ExpressionGenerator
             MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { arg_type });
             return mi2.Invoke(null, new object[] {  null,fields });
         }
-        public Expression<Func<TSource, object>> DynamicLambda<TSource>
+        public static Expression<Func<TSource, object>> DynamicLambda<TSource>
        (ParameterExpression parameterExpression = null, params string[] properties)
         {
             var entityType = typeof(TSource);
@@ -141,8 +152,25 @@ namespace ExpressionGenerator
         {
             Query_Type.SetQuery(condition.DeserializeObject<FunctionRule>());
         }
+        public void SetFuncType(Type t)
+        {
+            _ClassType = t;
+        }
 
-        private Expression ParseTree<T>(
+        public  object ExecuteParseTree(Type arg,ParameterExpression param, JsonElement el)
+        {
+            Type arg_type = arg;
+            Type class_type = typeof(JsonExpressionParser<FunctionRule>);
+            MethodInfo mi = class_type.GetMethod("ParseTree");
+            MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { arg_type });
+            Type constructedType = typeof(JsonExpressionParser<>).MakeGenericType(typeof(FunctionRule));
+            var ctor = constructedType.GetConstructor(new Type[] { typeof(QueryType<FunctionRule>), typeof(Type) });
+            Console.WriteLine(ctor);
+             var instance = (JsonExpressionParser<FunctionRule>)Activator.CreateInstance(constructedType, args: new object[] { Query_Type, arg });
+            //instance.SetQueryType(el);
+            return mi2.Invoke(instance, new object[] {  el, param });
+        }
+        public Expression ParseTree<T>(
             JsonElement condition,
             ParameterExpression parm)
         {
@@ -171,8 +199,17 @@ namespace ExpressionGenerator
                 string field = rule.GetProperty(nameof(field)).GetString();
                 
                 JsonElement value = rule.GetProperty(nameof(value));
-                
-                var property = Expression.Property(parm, field);
+
+                MemberExpression property = null;
+
+                try
+                {
+                    property = Expression.Property(parm, field);
+                }
+                catch (Exception)
+                {
+
+                }
 
                 if (@operator == In)
                 {
@@ -195,10 +232,11 @@ namespace ExpressionGenerator
                 }
                 else if (@operator == Select || @operator == GroupBy)
                 {
+                    Console.WriteLine(@operator);
                     if (@operator == GroupBy)
                     {
                         if (_ClassType != null)
-                            return ExecuteDynamicPropertySelect(_ClassType,
+                            return ExecuteDynamicFieldSelect(_ClassType,
                                 new string[] { Query_Type.Query.Type[0].Key }) as Expression;
 
                         return DynamicPropertySelect<T>(parm, properties: new[] { Query_Type.Query.Type[0].Key });
@@ -237,7 +275,24 @@ namespace ExpressionGenerator
             var query = Expression.Lambda<Func<T, bool>>(conditions, itemExpression);
             return query;
         }
-        public Expression<Func<T, object>> ParseExpression<T>(JsonDocument doc)
+
+         Expression<Func<object,object>> ParseExpressionObject(JsonDocument doc)
+        {
+            var itemExpression = Expression.Parameter(_ClassType);
+            var conditions = ExecuteParseTree(_ClassType,itemExpression, doc.RootElement) as Expression;
+            if (conditions.CanReduce)
+            {
+                conditions = conditions.ReduceAndCheck();
+            }
+            return conditions as Expression<Func<object, object>>;
+        }
+        public Func<object, object> ParsePredicateObject(JsonDocument doc)
+        {
+            var query = ParseExpressionObject(doc);
+            Console.WriteLine(query);
+            return query.Compile();
+        }
+         Expression<Func<T, object>> ParseExpression<T>(JsonDocument doc)
         {
             var itemExpression = Expression.Parameter(typeof(T));
             var conditions = ParseTree<T>(doc.RootElement, itemExpression);
@@ -247,7 +302,8 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-            if (Query_Type.Query.Condition == GroupBy || Query_Type.Query.Condition == Select)
+            if ((Query_Type.Query.Condition == GroupBy ||
+                Query_Type.Query.Condition == Select ) & _ClassType==null)
                 return conditions as Expression<Func<T, object>>;
 
             var query = Expression.Lambda<Func<T, object>>(conditions, itemExpression);
