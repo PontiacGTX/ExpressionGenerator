@@ -34,7 +34,7 @@ namespace ExpressionGenerator
             {
                 jsonExpressionParser.SetQueryType(item);
                 var lambda = jsonExpressionParser.ParsePredicate<Transaction>(JsonDocument.Parse(item.ToString()));
-                var t = jsonExpressionParser.@Type;
+                var t = jsonExpressionParser.Query_Type;
               
                 if(t.Query.Type.FirstOrDefault().Operator=="groupby")
                 {
@@ -51,20 +51,7 @@ namespace ExpressionGenerator
                 
             }
 
-                if(lambdas.TryGetValue("select",out var lam) && lambdas.TryGetValue("groupby",out var lamGroupBy))
-                {
-                        try
-                        {
-                            var r = transactionList.Select(lam).GroupBy(lamGroupBy);
-                            Console.WriteLine(r.Count());
-                        }
-                        catch (Exception ex)
-                        {
-
-                            throw;
-                        }
-                }
-            Console.WriteLine(lambdas.Count());
+               
             var filteredTransactions = transactionList.Where(predicate).ToList();
             
             writeAndWait($"Filtered to {filteredTransactions.Count} entities.");

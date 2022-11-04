@@ -11,10 +11,16 @@ namespace ExpressionGenerator
 {
     public class JsonExpressionParser<T> where T: Rule
     {
-        public QueryType<T> @Type { get; }
+        public QueryType<T> Query_Type { get; }
+        Type _ClassType { get; set; }
         public JsonExpressionParser(QueryType<T> type)
         {
-            @Type = type;
+            Query_Type = type;
+        }
+        public JsonExpressionParser(QueryType<T> type, Type classType)
+        {
+            Query_Type = type;
+            _ClassType = classType;
         }
         private const string StringStr = "string";
 
@@ -39,6 +45,25 @@ namespace ExpressionGenerator
             var entityType = typeof(TSource);
             var props = properties.Select(x => entityType.GetProperty(x)).ToList();
             return Expression.Lambda<Func<TSource, object>>(Expression.Property(parameterExpression, props.First().Name), parameterExpression);
+        }
+        public static object ExecuteDynamicPropertySelect(Type arg, string[] fields)
+        {
+
+            Type arg_type = arg;
+            var expressionParam =Expression.Parameter(arg_type);
+            Type class_type = typeof(JsonExpressionParser<Rule>);
+            MethodInfo mi = class_type.GetMethod("DynamicLambda", BindingFlags.Static | BindingFlags.Public);
+            MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { arg_type });
+            return mi2.Invoke(null, new object[] { null, expressionParam, fields });
+        }
+        public static object ExecuteDynamicLambda(Type arg,string[] fields)
+        {
+            
+            Type arg_type = arg;
+            Type class_type = typeof(JsonExpressionParser<Rule>);
+            MethodInfo mi = class_type.GetMethod("DynamicLambda", BindingFlags.Static | BindingFlags.Public);
+            MethodInfo mi2 = mi.MakeGenericMethod(new Type[] { arg_type });
+            return mi2.Invoke(null, new object[] {  null,fields });
         }
         public Expression<Func<TSource, object>> DynamicLambda<TSource>
        (ParameterExpression parameterExpression = null, params string[] properties)
@@ -114,7 +139,7 @@ namespace ExpressionGenerator
 
         public void SetQueryType(JsonElement condition)
         {
-            @Type.SetQuery(condition.DeserializeObject<FunctionRule>());
+            Query_Type.SetQuery(condition.DeserializeObject<FunctionRule>());
         }
 
         private Expression ParseTree<T>(
@@ -148,7 +173,7 @@ namespace ExpressionGenerator
                 JsonElement value = rule.GetProperty(nameof(value));
                 
                 var property = Expression.Property(parm, field);
-                
+
                 if (@operator == In)
                 {
                     var contains = MethodContains.MakeGenericMethod(typeof(string));
@@ -160,7 +185,7 @@ namespace ExpressionGenerator
                         property);
                     left = bind(left, right);
                 }
-                else if(@operator == And || @operator== Equal || @operator == Or)
+                else if (@operator == And || @operator == Equal || @operator == Or)
                 {
                     object val = (type == StringStr || type == BooleanStr) ?
                         (object)value.GetString() : value.GetDecimal();
@@ -168,24 +193,26 @@ namespace ExpressionGenerator
                     var right = Expression.Equal(property, toCompare);
                     left = bind(left, right);
                 }
-                else if(@operator == Select || @operator== GroupBy)
+                else if (@operator == Select || @operator == GroupBy)
                 {
-                    if(@operator==GroupBy)
+                    if (@operator == GroupBy)
                     {
-                        return DynamicPropertySelect<T>(parm, properties: new[] { @Type.Query.Type[0].Key });
+                        if (_ClassType != null)
+                            return ExecuteDynamicPropertySelect(_ClassType,
+                                new string[] { Query_Type.Query.Type[0].Key }) as Expression;
+
+                        return DynamicPropertySelect<T>(parm, properties: new[] { Query_Type.Query.Type[0].Key });
                     }
-                    var items = rule.GetProperty(nameof(value)) ;
-                    var values  = items.GetEnumeratorList<string>();
+                    var items = rule.GetProperty(nameof(value));
+                    var values = items.GetEnumeratorList<string>();
                     var fields = rule.GetProperty(nameof(field)).GetString();
+
+                    if (_ClassType != null)
+                        return ExecuteDynamicLambda(_ClassType, Query_Type.Query.Type[0].Value as string[]) as Expression;
+
                     var lambda =DynamicLambda<T>(parm,properties: values.ToArray());
-
-                    if(@operator ==Select)
-                    {
-                        return lambda;
-                    }
-                    
-
-
+                     return lambda;
+                   
                 }
                
             }
@@ -203,7 +230,7 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-            if(@Type.IsInnerType(typeof(FunctionRule)))
+            if(Query_Type.IsInnerType(typeof(FunctionRule)))
             {
                 return conditions as Expression<Func<T,bool>>;
             }
@@ -220,7 +247,7 @@ namespace ExpressionGenerator
             }
 
             Console.WriteLine(conditions.ToString());
-            if (@Type.Query.Condition == GroupBy || @Type.Query.Condition == Select)
+            if (Query_Type.Query.Condition == GroupBy || Query_Type.Query.Condition == Select)
                 return conditions as Expression<Func<T, object>>;
 
             var query = Expression.Lambda<Func<T, object>>(conditions, itemExpression);
